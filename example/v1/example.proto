@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package example.v1;
+
+import "actionqueue/v1/options.proto";
+
+option go_package = "github.com/jirwin/protoc-gen-actionqueue/example/v1";
+
+message UserSyncAction {
+  option (actionqueue.v1.action) = {
+    name: "user-sync-queue"
+    signal: "signal:start:user-sync-queue"
+    workflow_id_fields: ["tenant_id", "user_id"]
+    tenant_id_field: "tenant_id"
+  };
+
+  string tenant_id = 1;
+  string user_id = 2;
+  string sync_reason = 3;
+}

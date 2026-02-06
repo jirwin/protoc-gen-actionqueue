@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package actionqueue.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/jirwin/protoc-gen-actionqueue/actionqueue/v1";
+
+// MessageOptions marks a message as an action queue action proto and configures generation.
+message MessageOptions {
+  // name is the unique workflow name (e.g., "my-entity-queue")
+  string name = 1;
+
+  // signal is the signal name to wake the workflow (e.g., "signal:start:my-entity-queue")
+  string signal = 2;
+
+  // workflow_id_fields are field names to compose the workflow ID.
+  // Example: ["tenant_id", "entity_id"] -> "my-queue:{tenant_id}:{entity_id}"
+  repeated string workflow_id_fields = 3;
+
+  // tenant_id_field is the field name for tenant extraction (default: "tenant_id")
+  string tenant_id_field = 4;
+}
+
+extend google.protobuf.MessageOptions {
+  MessageOptions action = 7100;
+}

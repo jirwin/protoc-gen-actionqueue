@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/jirwin/projects/protoc-gen-actionqueue log --oneline)",
+      "Bash(buf dep update:*)",
+      "Bash(make:*)",
+      "Bash(buf generate:*)",
+      "Bash(buf build:*)",
+      "Bash(buf mod update:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(go build:*)",
+      "Bash(go vet:*)",
+      "Bash(find:*)"
+    ]
+  }
+}
