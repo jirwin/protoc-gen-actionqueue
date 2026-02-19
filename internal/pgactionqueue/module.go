@@ -284,6 +284,30 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	)
 	code.Line()
 
+	// Generate PKTemplate function
+	// Creates a zero-value action with PK fields set for listing via ScanWithPK/UnrollAll.
+	code.Comment(fmt.Sprintf("%sPKTemplate creates a PK template for listing actions.", msgName))
+	var pkTemplateFields jen.Dict
+	pkTemplateFields = make(jen.Dict)
+	argIdx := 0
+	for _, fieldName := range workflowIDFields {
+		field := m.findField(msg, fieldName)
+		goFieldName := field.Name().UpperCamelCase().String()
+		if fieldName == tenantField {
+			pkTemplateFields[jen.Id(goFieldName)] = jen.Id("tenantID")
+		} else {
+			pkTemplateFields[jen.Id(goFieldName)] = jen.Id("entityIDs").Index(jen.Lit(argIdx))
+			argIdx++
+		}
+	}
+	code.Func().Id(msgName + "PKTemplate").Params(
+		jen.Id("tenantID").String(),
+		jen.Id("entityIDs").Index().String(),
+	).Op("*").Id(msgName).Block(
+		jen.Return(jen.Op("&").Id(msgName).Values(pkTemplateFields)),
+	)
+	code.Line()
+
 	// Generate zero-arg Definition factory function
 	code.Comment(fmt.Sprintf("%sDefinition creates an actionqueue.Definition for the %s queue.", pascalName, queueName))
 	code.Comment("Runtime fields (ActivityMain, WorkflowFunc, ActivityOptions) are set when a driver is bound.")
