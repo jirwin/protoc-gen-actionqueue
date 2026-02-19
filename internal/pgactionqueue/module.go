@@ -238,12 +238,14 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	// Generate EntityIDs function (non-tenant workflow ID fields)
 	code.Comment(fmt.Sprintf("%sEntityIDs extracts the non-tenant entity IDs from a %s action.", msgName, msgName))
 	var entityIDStmts []jen.Code
-	entityIDStmts = append(entityIDStmts, jen.Id("a").Op(":=").Id("action").Assert(jen.Op("*").Id(msgName)))
 	var entityIDElems []jen.Code
-	for _, fieldName := range entityIDFields {
-		field := m.findField(msg, fieldName)
-		goFieldName := field.Name().UpperCamelCase().String()
-		entityIDElems = append(entityIDElems, jen.Id("a").Dot("Get"+goFieldName).Call())
+	if len(entityIDFields) > 0 {
+		entityIDStmts = append(entityIDStmts, jen.Id("a").Op(":=").Id("action").Assert(jen.Op("*").Id(msgName)))
+		for _, fieldName := range entityIDFields {
+			field := m.findField(msg, fieldName)
+			goFieldName := field.Name().UpperCamelCase().String()
+			entityIDElems = append(entityIDElems, jen.Id("a").Dot("Get"+goFieldName).Call())
+		}
 	}
 	entityIDStmts = append(entityIDStmts, jen.Return(jen.Index().String().Values(entityIDElems...)))
 
