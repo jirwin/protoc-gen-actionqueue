@@ -6,7 +6,6 @@ package v1
 import (
 	"fmt"
 	actionqueue "github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue"
-	workflow "go.temporal.io/sdk/workflow"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -26,21 +25,31 @@ func UserSyncActionTenantID(action proto.Message) string {
 	return action.(*UserSyncAction).GetTenantId()
 }
 
+// UserSyncActionEntityIDs extracts the non-tenant entity IDs from a UserSyncAction action.
+func UserSyncActionEntityIDs(action proto.Message) []string {
+	a := action.(*UserSyncAction)
+	return []string{a.GetUserId()}
+}
+
+// UserSyncQueueWorkflowIDFromArgs constructs a workflow ID from individual arguments.
+func UserSyncQueueWorkflowIDFromArgs(tenantID string, entityIDs []string) string {
+	return fmt.Sprintf("user-sync-queue:%s:%s", tenantID, entityIDs[0])
+}
+
 // UserSyncQueueDefinition creates an actionqueue.Definition for the user-sync-queue queue.
-func UserSyncQueueDefinition(activityMain any, workflowFunc any, activityOptions func() workflow.ActivityOptions) *actionqueue.Definition {
+// Runtime fields (ActivityMain, WorkflowFunc, ActivityOptions) are set when a driver is bound.
+func UserSyncQueueDefinition() *actionqueue.Definition {
 	return &actionqueue.Definition{
-		ActionProto:     &UserSyncAction{},
-		ActivityMain:    activityMain,
-		ActivityOptions: activityOptions,
-		Name:            UserSyncQueueName,
-		Signal:          UserSyncQueueSignal,
-		TenantIDFunc:    UserSyncActionTenantID,
-		WorkflowFunc:    workflowFunc,
-		WorkflowIDFunc:  UserSyncActionWorkflowID,
+		ActionProto:        &UserSyncAction{},
+		EntityIDsFunc:      UserSyncActionEntityIDs,
+		Name:               UserSyncQueueName,
+		Signal:             UserSyncQueueSignal,
+		TenantIDFunc:       UserSyncActionTenantID,
+		WorkflowIDFromArgs: UserSyncQueueWorkflowIDFromArgs,
+		WorkflowIDFunc:     UserSyncActionWorkflowID,
 	}
 }
 
 func init() {
-	// Register user-sync-queue queue definition placeholder
-	_ = UserSyncQueueName
+	actionqueue.Register(UserSyncQueueDefinition())
 }

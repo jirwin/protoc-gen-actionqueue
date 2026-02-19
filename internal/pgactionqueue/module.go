@@ -194,9 +194,15 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	// e.g., "my-entity-queue" -> "MyEntityQueue"
 	pascalName := toPascalCase(queueName)
 
+	// Compute entity ID fields (workflow_id_fields excluding tenant_id_field)
+	var entityIDFields []string
+	for _, f := range workflowIDFields {
+		if f != tenantField {
+			entityIDFields = append(entityIDFields, f)
+		}
+	}
+
 	// Generate constants
-	// The pascalName already captures the queue identifier (e.g., "MyEntityQueue" from "my-entity-queue")
-	// We add "Name" and "Signal" suffixes, not "QueueName" and "QueueSignal"
 	code.Const().Defs(
 		jen.Id(pascalName+"Name").Op("=").Lit(queueName),
 		jen.Id(pascalName+"Signal").Op("=").Lit(signal),
@@ -204,7 +210,6 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	code.Line()
 
 	// Generate WorkflowID function
-	// func MyEntityActionWorkflowID(action proto.Message) string
 	code.Comment(fmt.Sprintf("%sWorkflowID returns the workflow ID for a %s action.", msgName, msgName))
 
 	// Build the format string and arguments for Sprintf
@@ -222,7 +227,6 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	code.Line()
 
 	// Generate TenantID function
-	// func MyEntityActionTenantID(action proto.Message) string
 	code.Comment(fmt.Sprintf("%sTenantID extracts the tenant ID from a %s action.", msgName, msgName))
 	code.Func().Id(msgName + "TenantID").Params(
 		jen.Id("action").Qual("google.golang.org/protobuf/proto", "Message"),
@@ -231,23 +235,67 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	)
 	code.Line()
 
-	// Generate Definition factory function
-	// func MyEntityQueueDefinition(activityMain any, workflowFunc any, activityOptions func() workflow.ActivityOptions) *actionqueue.Definition
+	// Generate EntityIDs function (non-tenant workflow ID fields)
+	code.Comment(fmt.Sprintf("%sEntityIDs extracts the non-tenant entity IDs from a %s action.", msgName, msgName))
+	var entityIDStmts []jen.Code
+	entityIDStmts = append(entityIDStmts, jen.Id("a").Op(":=").Id("action").Assert(jen.Op("*").Id(msgName)))
+	var entityIDElems []jen.Code
+	for _, fieldName := range entityIDFields {
+		field := m.findField(msg, fieldName)
+		goFieldName := field.Name().UpperCamelCase().String()
+		entityIDElems = append(entityIDElems, jen.Id("a").Dot("Get"+goFieldName).Call())
+	}
+	entityIDStmts = append(entityIDStmts, jen.Return(jen.Index().String().Values(entityIDElems...)))
+
+	code.Func().Id(msgName + "EntityIDs").Params(
+		jen.Id("action").Qual("google.golang.org/protobuf/proto", "Message"),
+	).Index().String().Block(entityIDStmts...)
+	code.Line()
+
+	// Generate WorkflowIDFromArgs function
+	// Constructs workflow ID from tenantID + entityIDs without needing the full proto
+	code.Comment(fmt.Sprintf("%sWorkflowIDFromArgs constructs a workflow ID from individual arguments.", pascalName))
+	var fromArgsSprintfArgs []jen.Code
+	fromArgsFmt := queueName + ":"
+	argIndex := 0
+	for i, fieldName := range workflowIDFields {
+		if i > 0 {
+			fromArgsFmt += ":"
+		}
+		if fieldName == tenantField {
+			fromArgsFmt += "%s"
+			fromArgsSprintfArgs = append(fromArgsSprintfArgs, jen.Id("tenantID"))
+		} else {
+			fromArgsFmt += "%s"
+			fromArgsSprintfArgs = append(fromArgsSprintfArgs, jen.Id("entityIDs").Index(jen.Lit(argIndex)))
+			argIndex++
+		}
+	}
+	allFromArgsSprintfArgs := []jen.Code{jen.Lit(fromArgsFmt)}
+	allFromArgsSprintfArgs = append(allFromArgsSprintfArgs, fromArgsSprintfArgs...)
+
+	code.Func().Id(pascalName + "WorkflowIDFromArgs").Params(
+		jen.Id("tenantID").String(),
+		jen.Id("entityIDs").Index().String(),
+	).String().Block(
+		jen.Return(jen.Qual("fmt", "Sprintf").Call(allFromArgsSprintfArgs...)),
+	)
+	code.Line()
+
+	// Generate zero-arg Definition factory function
 	code.Comment(fmt.Sprintf("%sDefinition creates an actionqueue.Definition for the %s queue.", pascalName, queueName))
-	code.Func().Id(pascalName + "Definition").Params(
-		jen.Id("activityMain").Any(),
-		jen.Id("workflowFunc").Any(),
-		jen.Id("activityOptions").Func().Params().Qual("go.temporal.io/sdk/workflow", "ActivityOptions"),
-	).Op("*").Qual("github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue", "Definition").Block(
+	code.Comment("Runtime fields (ActivityMain, WorkflowFunc, ActivityOptions) are set when a driver is bound.")
+	code.Func().Id(pascalName + "Definition").Params().Op("*").Qual(
+		"github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue", "Definition",
+	).Block(
 		jen.Return(jen.Op("&").Qual("github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue", "Definition").Values(jen.Dict{
-			jen.Id("Name"):            jen.Id(pascalName + "Name"),
-			jen.Id("Signal"):          jen.Id(pascalName + "Signal"),
-			jen.Id("ActionProto"):     jen.Op("&").Id(msgName).Values(),
-			jen.Id("WorkflowIDFunc"):  jen.Id(msgName + "WorkflowID"),
-			jen.Id("TenantIDFunc"):    jen.Id(msgName + "TenantID"),
-			jen.Id("ActivityMain"):    jen.Id("activityMain"),
-			jen.Id("WorkflowFunc"):    jen.Id("workflowFunc"),
-			jen.Id("ActivityOptions"): jen.Id("activityOptions"),
+			jen.Id("Name"):               jen.Id(pascalName + "Name"),
+			jen.Id("Signal"):             jen.Id(pascalName + "Signal"),
+			jen.Id("ActionProto"):        jen.Op("&").Id(msgName).Values(),
+			jen.Id("WorkflowIDFunc"):     jen.Id(msgName + "WorkflowID"),
+			jen.Id("TenantIDFunc"):       jen.Id(msgName + "TenantID"),
+			jen.Id("EntityIDsFunc"):      jen.Id(msgName + "EntityIDs"),
+			jen.Id("WorkflowIDFromArgs"): jen.Id(pascalName + "WorkflowIDFromArgs"),
 		})),
 	)
 	code.Line()
@@ -272,18 +320,17 @@ func (m *Module) generateInit(code *jen.File, messages []pgs.Message) {
 	}
 
 	var stmts []jen.Code
-	for i, msg := range messages {
+	for _, msg := range messages {
 		// Get action annotation
 		opts := msg.Descriptor().GetOptions()
 		ext := proto.GetExtension(opts, actionqueuepb.E_Action).(*actionqueuepb.MessageOptions)
 		pascalName := toPascalCase(ext.Name)
 
-		stmts = append(stmts, jen.Comment(fmt.Sprintf("Register %s queue definition placeholder", ext.Name)))
-		stmts = append(stmts, jen.Id("_").Op("=").Id(pascalName+"Name"))
-
-		if i < len(messages)-1 {
-			stmts = append(stmts, jen.Line())
-		}
+		stmts = append(stmts,
+			jen.Qual("github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue", "Register").Call(
+				jen.Id(pascalName+"Definition").Call(),
+			),
+		)
 	}
 
 	code.Func().Id("init").Params().Block(stmts...)
