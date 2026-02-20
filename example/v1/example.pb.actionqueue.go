@@ -22,7 +22,7 @@ const (
 // BookActionWorkflowID returns the workflow ID for a BookAction action.
 func BookActionWorkflowID(action proto.Message) string {
 	a := action.(*BookAction)
-	return fmt.Sprintf("book-queue:%s:%s", a.GetTenantId(), a.GetBookId())
+	return fmt.Sprintf("action-queue-book-queue:%s:%s", a.GetTenantId(), a.GetBookId())
 }
 
 // BookActionTenantID extracts the tenant ID from a BookAction action.
@@ -38,7 +38,7 @@ func BookActionEntityIDs(action proto.Message) []string {
 
 // BookQueueWorkflowIDFromArgs constructs a workflow ID from individual arguments.
 func BookQueueWorkflowIDFromArgs(tenantID string, entityIDs []string) string {
-	return fmt.Sprintf("book-queue:%s:%s", tenantID, entityIDs[0])
+	return fmt.Sprintf("action-queue-book-queue:%s:%s", tenantID, entityIDs[0])
 }
 
 // BookActionPKTemplate creates a PK template for listing actions.
@@ -51,6 +51,9 @@ func BookActionPKTemplate(tenantID string, entityIDs []string) *BookAction {
 
 // BookActionNextCheckout creates a new BookAction with the Checkout event, copying PK fields and generating a fresh ID.
 func BookActionNextCheckout(current *BookAction, deadline *timestamppb.Timestamp, event *CheckoutEvent) *BookAction {
+	if deadline == nil {
+		deadline = timestamppb.Now()
+	}
 	return &BookAction{
 		BookId:   current.GetBookId(),
 		Deadline: deadline,
@@ -62,6 +65,9 @@ func BookActionNextCheckout(current *BookAction, deadline *timestamppb.Timestamp
 
 // BookActionNextReturnBook creates a new BookAction with the ReturnBook event, copying PK fields and generating a fresh ID.
 func BookActionNextReturnBook(current *BookAction, deadline *timestamppb.Timestamp, event *ReturnEvent) *BookAction {
+	if deadline == nil {
+		deadline = timestamppb.Now()
+	}
 	return &BookAction{
 		BookId:   current.GetBookId(),
 		Deadline: deadline,

@@ -261,7 +261,7 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 
 	// Build the format string and arguments for Sprintf
 	sprintfArgs := []jen.Code{
-		jen.Lit(queueName + ":" + strings.Repeat("%s:", len(workflowIDFields)-1) + "%s"),
+		jen.Lit("action-queue-" + queueName + ":" + strings.Repeat("%s:", len(workflowIDFields)-1) + "%s"),
 	}
 	sprintfArgs = append(sprintfArgs, m.generateWorkflowIDArgs(msg, workflowIDFields)...)
 
@@ -305,7 +305,7 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 	// Constructs workflow ID from tenantID + entityIDs without needing the full proto
 	code.Comment(fmt.Sprintf("%sWorkflowIDFromArgs constructs a workflow ID from individual arguments.", pascalName))
 	var fromArgsSprintfArgs []jen.Code
-	fromArgsFmt := queueName + ":"
+	fromArgsFmt := "action-queue-" + queueName + ":"
 	argIndex := 0
 	for i, fieldName := range workflowIDFields {
 		if i > 0 {
@@ -387,6 +387,9 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 			jen.Id("deadline").Op("*").Qual("google.golang.org/protobuf/types/known/timestamppb", "Timestamp"),
 			jen.Id("event").Op("*").Id(eventMsgName),
 		).Op("*").Id(msgName).Block(
+			jen.If(jen.Id("deadline").Op("==").Nil()).Block(
+				jen.Id("deadline").Op("=").Qual("google.golang.org/protobuf/types/known/timestamppb", "Now").Call(),
+			),
 			jen.Return(jen.Op("&").Id(msgName).Values(structFields)),
 		)
 		code.Line()
