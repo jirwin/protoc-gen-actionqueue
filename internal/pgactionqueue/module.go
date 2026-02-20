@@ -172,6 +172,26 @@ func (m *Module) shouldGenerate(msg pgs.Message, queueNames map[string]string) b
 		return false
 	}
 
+	// Validate that the message has a `oneof event` with message-typed fields
+	var hasEventOneof bool
+	for _, oo := range msg.OneOfs() {
+		if oo.Name().String() == "event" {
+			hasEventOneof = true
+			for _, field := range oo.Fields() {
+				if !field.Type().IsEmbed() {
+					m.Failf("message %s oneof event field %q must be a message type, got %s",
+						msg.FullyQualifiedName(), field.Name().String(), field.Type().ProtoType().String())
+					return false
+				}
+			}
+			break
+		}
+	}
+	if !hasEventOneof {
+		m.Failf("message %s must have a `oneof event` field", msg.FullyQualifiedName())
+		return false
+	}
+
 	queueNames[ext.Name] = msg.FullyQualifiedName()
 	return true
 }
@@ -202,11 +222,28 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 		}
 	}
 
-	// Generate constants
-	code.Const().Defs(
-		jen.Id(pascalName+"Name").Op("=").Lit(queueName),
-		jen.Id(pascalName+"Signal").Op("=").Lit(signal),
-	)
+	// Find the oneof event fields for EventKey generation
+	var eventOneofFields []pgs.Field
+	for _, oo := range msg.OneOfs() {
+		if oo.Name().String() == "event" {
+			eventOneofFields = oo.Fields()
+			break
+		}
+	}
+
+	// Generate constants: name, signal, and EventKey per oneof field
+	constDefs := []jen.Code{
+		jen.Id(pascalName + "Name").Op("=").Lit(queueName),
+		jen.Id(pascalName + "Signal").Op("=").Lit(signal),
+	}
+	for _, field := range eventOneofFields {
+		goFieldName := field.Name().UpperCamelCase().String()
+		fieldNumber := field.Descriptor().GetNumber()
+		constDefs = append(constDefs,
+			jen.Id(msgName+"EventKey"+goFieldName).Qual("google.golang.org/protobuf/reflect/protoreflect", "FieldNumber").Op("=").Lit(int(fieldNumber)),
+		)
+	}
+	code.Const().Defs(constDefs...)
 	code.Line()
 
 	// Generate WorkflowID function

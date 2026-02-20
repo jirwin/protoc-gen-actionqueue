@@ -3,18 +3,32 @@ syntax = "proto3";
 package example.v1;
 
 import "actionqueue/v1/options.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/jirwin/protoc-gen-actionqueue/example/v1";
 
-message UserSyncAction {
+message CheckoutEvent {
+  string borrower_id = 1;
+}
+
+message ReturnEvent {
+  string condition = 1;
+}
+
+message BookAction {
   option (actionqueue.v1.action) = {
-    name: "user-sync-queue"
-    signal: "signal:start:user-sync-queue"
-    workflow_id_fields: ["tenant_id", "user_id"]
+    name: "book-queue"
+    signal: "signal:start:book-queue"
+    workflow_id_fields: ["tenant_id", "book_id"]
     tenant_id_field: "tenant_id"
   };
 
-  string tenant_id = 1;
-  string user_id = 2;
-  string sync_reason = 3;
+  google.protobuf.Timestamp deadline = 1;
+  string tenant_id = 2;
+  string book_id = 3;
+
+  oneof event {
+    CheckoutEvent checkout = 10;
+    ReturnEvent return_book = 11;
+  }
 }

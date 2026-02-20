@@ -7,49 +7,60 @@ import (
 	"fmt"
 	actionqueue "github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue"
 	proto "google.golang.org/protobuf/proto"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const (
-	UserSyncQueueName   = "user-sync-queue"
-	UserSyncQueueSignal = "signal:start:user-sync-queue"
+	BookQueueName                                         = "book-queue"
+	BookQueueSignal                                       = "signal:start:book-queue"
+	BookActionEventKeyCheckout   protoreflect.FieldNumber = 10
+	BookActionEventKeyReturnBook protoreflect.FieldNumber = 11
 )
 
-// UserSyncActionWorkflowID returns the workflow ID for a UserSyncAction action.
-func UserSyncActionWorkflowID(action proto.Message) string {
-	a := action.(*UserSyncAction)
-	return fmt.Sprintf("user-sync-queue:%s:%s", a.GetTenantId(), a.GetUserId())
+// BookActionWorkflowID returns the workflow ID for a BookAction action.
+func BookActionWorkflowID(action proto.Message) string {
+	a := action.(*BookAction)
+	return fmt.Sprintf("book-queue:%s:%s", a.GetTenantId(), a.GetBookId())
 }
 
-// UserSyncActionTenantID extracts the tenant ID from a UserSyncAction action.
-func UserSyncActionTenantID(action proto.Message) string {
-	return action.(*UserSyncAction).GetTenantId()
+// BookActionTenantID extracts the tenant ID from a BookAction action.
+func BookActionTenantID(action proto.Message) string {
+	return action.(*BookAction).GetTenantId()
 }
 
-// UserSyncActionEntityIDs extracts the non-tenant entity IDs from a UserSyncAction action.
-func UserSyncActionEntityIDs(action proto.Message) []string {
-	a := action.(*UserSyncAction)
-	return []string{a.GetUserId()}
+// BookActionEntityIDs extracts the non-tenant entity IDs from a BookAction action.
+func BookActionEntityIDs(action proto.Message) []string {
+	a := action.(*BookAction)
+	return []string{a.GetBookId()}
 }
 
-// UserSyncQueueWorkflowIDFromArgs constructs a workflow ID from individual arguments.
-func UserSyncQueueWorkflowIDFromArgs(tenantID string, entityIDs []string) string {
-	return fmt.Sprintf("user-sync-queue:%s:%s", tenantID, entityIDs[0])
+// BookQueueWorkflowIDFromArgs constructs a workflow ID from individual arguments.
+func BookQueueWorkflowIDFromArgs(tenantID string, entityIDs []string) string {
+	return fmt.Sprintf("book-queue:%s:%s", tenantID, entityIDs[0])
 }
 
-// UserSyncQueueDefinition creates an actionqueue.Definition for the user-sync-queue queue.
+// BookActionPKTemplate creates a PK template for listing actions.
+func BookActionPKTemplate(tenantID string, entityIDs []string) *BookAction {
+	return &BookAction{
+		BookId:   entityIDs[0],
+		TenantId: tenantID,
+	}
+}
+
+// BookQueueDefinition creates an actionqueue.Definition for the book-queue queue.
 // Runtime fields (ActivityMain, WorkflowFunc, ActivityOptions) are set when a driver is bound.
-func UserSyncQueueDefinition() *actionqueue.Definition {
+func BookQueueDefinition() *actionqueue.Definition {
 	return &actionqueue.Definition{
-		ActionProto:        &UserSyncAction{},
-		EntityIDsFunc:      UserSyncActionEntityIDs,
-		Name:               UserSyncQueueName,
-		Signal:             UserSyncQueueSignal,
-		TenantIDFunc:       UserSyncActionTenantID,
-		WorkflowIDFromArgs: UserSyncQueueWorkflowIDFromArgs,
-		WorkflowIDFunc:     UserSyncActionWorkflowID,
+		ActionProto:        &BookAction{},
+		EntityIDsFunc:      BookActionEntityIDs,
+		Name:               BookQueueName,
+		Signal:             BookQueueSignal,
+		TenantIDFunc:       BookActionTenantID,
+		WorkflowIDFromArgs: BookQueueWorkflowIDFromArgs,
+		WorkflowIDFunc:     BookActionWorkflowID,
 	}
 }
 
 func init() {
-	actionqueue.Register(UserSyncQueueDefinition())
+	actionqueue.Register(BookQueueDefinition())
 }
