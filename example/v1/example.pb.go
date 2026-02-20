@@ -116,6 +116,7 @@ type BookAction struct {
 	Deadline *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=deadline,proto3" json:"deadline,omitempty"`
 	TenantId string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	BookId   string                 `protobuf:"bytes,3,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
+	Id       string                 `protobuf:"bytes,4,opt,name=id,proto3" json:"id,omitempty"`
 	// Types that are valid to be assigned to Event:
 	//
 	//	*BookAction_Checkout
@@ -176,6 +177,13 @@ func (x *BookAction) GetBookId() string {
 	return ""
 }
 
+func (x *BookAction) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 func (x *BookAction) GetEvent() isBookAction_Event {
 	if x != nil {
 		return x.Event
@@ -227,12 +235,13 @@ const file_v1_example_proto_rawDesc = "" +
 	"\vborrower_id\x18\x01 \x01(\tR\n" +
 	"borrowerId\"+\n" +
 	"\vReturnEvent\x12\x1c\n" +
-	"\tcondition\x18\x01 \x01(\tR\tcondition\"\xc2\x02\n" +
+	"\tcondition\x18\x01 \x01(\tR\tcondition\"\xd2\x02\n" +
 	"\n" +
 	"BookAction\x126\n" +
 	"\bdeadline\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\bdeadline\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x17\n" +
-	"\abook_id\x18\x03 \x01(\tR\x06bookId\x127\n" +
+	"\abook_id\x18\x03 \x01(\tR\x06bookId\x12\x0e\n" +
+	"\x02id\x18\x04 \x01(\tR\x02id\x127\n" +
 	"\bcheckout\x18\n" +
 	" \x01(\v2\x19.example.v1.CheckoutEventH\x00R\bcheckout\x12:\n" +
 	"\vreturn_book\x18\v \x01(\v2\x17.example.v1.ReturnEventH\x00R\n" +

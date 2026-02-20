@@ -26,6 +26,7 @@ message BookAction {
   google.protobuf.Timestamp deadline = 1;
   string tenant_id = 2;
   string book_id = 3;
+  string id = 4;
 
   oneof event {
     CheckoutEvent checkout = 10;

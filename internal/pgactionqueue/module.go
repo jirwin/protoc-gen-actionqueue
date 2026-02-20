@@ -172,6 +172,16 @@ func (m *Module) shouldGenerate(msg pgs.Message, queueNames map[string]string) b
 		return false
 	}
 
+	// Validate id_field (or default "id")
+	idField := ext.IdField
+	if idField == "" {
+		idField = "id"
+	}
+	if m.findField(msg, idField) == nil {
+		m.Failf("message %s is missing id field %q", msg.FullyQualifiedName(), idField)
+		return false
+	}
+
 	// Validate that the message has a `oneof event` with message-typed fields
 	var hasEventOneof bool
 	for _, oo := range msg.OneOfs() {
@@ -344,6 +354,43 @@ func (m *Module) generateMessage(code *jen.File, msg pgs.Message) {
 		jen.Return(jen.Op("&").Id(msgName).Values(pkTemplateFields)),
 	)
 	code.Line()
+
+	// Generate per-event Next helper functions
+	idField := ext.IdField
+	if idField == "" {
+		idField = "id"
+	}
+	goIDFieldName := m.findField(msg, idField).Name().UpperCamelCase().String()
+
+	for _, field := range eventOneofFields {
+		eventFieldUCC := field.Name().UpperCamelCase().String()
+		eventMsgName := m.ctx.Name(field.Type().Embed()).String()
+
+		code.Comment(fmt.Sprintf("%sNext%s creates a new %s with the %s event, copying PK fields and generating a fresh ID.",
+			msgName, eventFieldUCC, msgName, eventFieldUCC))
+
+		// Build the struct literal fields
+		structFields := make(jen.Dict)
+		for _, wfField := range workflowIDFields {
+			f := m.findField(msg, wfField)
+			goName := f.Name().UpperCamelCase().String()
+			structFields[jen.Id(goName)] = jen.Id("current").Dot("Get" + goName).Call()
+		}
+		structFields[jen.Id(goIDFieldName)] = jen.Qual("github.com/segmentio/ksuid", "New").Call().Dot("String").Call()
+		structFields[jen.Id("Deadline")] = jen.Id("deadline")
+		structFields[jen.Id("Event")] = jen.Op("&").Id(msgName + "_" + eventFieldUCC).Values(jen.Dict{
+			jen.Id(eventFieldUCC): jen.Id("event"),
+		})
+
+		code.Func().Id(msgName + "Next" + eventFieldUCC).Params(
+			jen.Id("current").Op("*").Id(msgName),
+			jen.Id("deadline").Op("*").Qual("google.golang.org/protobuf/types/known/timestamppb", "Timestamp"),
+			jen.Id("event").Op("*").Id(eventMsgName),
+		).Op("*").Id(msgName).Block(
+			jen.Return(jen.Op("&").Id(msgName).Values(structFields)),
+		)
+		code.Line()
+	}
 
 	// Generate zero-arg Definition factory function
 	code.Comment(fmt.Sprintf("%sDefinition creates an actionqueue.Definition for the %s queue.", pascalName, queueName))

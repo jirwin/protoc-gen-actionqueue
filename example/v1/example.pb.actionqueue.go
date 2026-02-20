@@ -6,8 +6,10 @@ package v1
 import (
 	"fmt"
 	actionqueue "github.com/jirwin/protoc-gen-actionqueue/pkg/actionqueue"
+	ksuid "github.com/segmentio/ksuid"
 	proto "google.golang.org/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -44,6 +46,28 @@ func BookActionPKTemplate(tenantID string, entityIDs []string) *BookAction {
 	return &BookAction{
 		BookId:   entityIDs[0],
 		TenantId: tenantID,
+	}
+}
+
+// BookActionNextCheckout creates a new BookAction with the Checkout event, copying PK fields and generating a fresh ID.
+func BookActionNextCheckout(current *BookAction, deadline *timestamppb.Timestamp, event *CheckoutEvent) *BookAction {
+	return &BookAction{
+		BookId:   current.GetBookId(),
+		Deadline: deadline,
+		Event:    &BookAction_Checkout{Checkout: event},
+		Id:       ksuid.New().String(),
+		TenantId: current.GetTenantId(),
+	}
+}
+
+// BookActionNextReturnBook creates a new BookAction with the ReturnBook event, copying PK fields and generating a fresh ID.
+func BookActionNextReturnBook(current *BookAction, deadline *timestamppb.Timestamp, event *ReturnEvent) *BookAction {
+	return &BookAction{
+		BookId:   current.GetBookId(),
+		Deadline: deadline,
+		Event:    &BookAction_ReturnBook{ReturnBook: event},
+		Id:       ksuid.New().String(),
+		TenantId: current.GetTenantId(),
 	}
 }
 

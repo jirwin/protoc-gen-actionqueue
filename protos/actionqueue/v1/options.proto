@@ -20,6 +20,9 @@ message MessageOptions {
 
   // tenant_id_field is the field name for tenant extraction (default: "tenant_id")
   string tenant_id_field = 4;
+
+  // id_field is the per-action unique ID field name (default: "id")
+  string id_field = 5;
 }
 
 extend google.protobuf.MessageOptions {
